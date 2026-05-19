@@ -12,23 +12,33 @@ router.post('/register', async (req, res) => {
         return res.status(400).json({ message: 'Missing fields' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    try {
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-    db.query(
-        'INSERT INTO users (username, password) VALUES (?, ?)',
-        [username, hashedPassword],
-        (err, result) => {
-            if (err) {
-                return res.status(500).json({ error: err.message });
+        db.query(
+            'INSERT INTO users (username, password) VALUES (?, ?)',
+            [username, hashedPassword],
+            (err, result) => {
+                if (err) {
+                    if (err.code === 'ER_DUP_ENTRY') {
+                        return res.status(400).json({ message: 'Username already taken' });
+                    }
+                    return res.status(500).json({ error: err.message });
+                }
+                res.json({ message: 'User registered' });
             }
-
-            res.json({ message: 'User registered' });
-        }
-    );
+        );
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 router.post('/login', (req, res) => {
     const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ message: 'Missing fields' });
+    }
 
     db.query(
         'SELECT * FROM users WHERE username = ?',
@@ -52,7 +62,7 @@ router.post('/login', (req, res) => {
                 { expiresIn: '24h' }
             );
 
-            res.json({ token });
+            res.json({ token, wins: user.wins, chips: user.chips });
         }
     );
 });
